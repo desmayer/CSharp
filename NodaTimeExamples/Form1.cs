@@ -17,41 +17,25 @@ namespace NodaTimeExamples
 {
     public partial class Form1 : Form
     {
-        public DateTimeZone datetimeZone;
-        public CultureInfo culture;
-        public CultureInfo defaultCulture = new CultureInfo("en-GB");
+        public CultureInfo culture = new CultureInfo("en-GB");
+        public DateTimeZone timeZone = DateTimeZoneProviders.Tzdb["Europe/London"];
+        public Instant now = SystemClock.Instance.GetCurrentInstant();
         public Form1()
         {
-            ReadOnlyCollection<TimeZoneInfo> timezones;
-            timezones = TimeZoneInfo.GetSystemTimeZones();
             InitializeComponent();
-            Instant i2 = Instant.FromDateTimeOffset(DateTime.Now);
-            Instant now = SystemClock.Instance.GetCurrentInstant();
-            DateTimeZone tz = DateTimeZoneProviders.Tzdb["Europe/London"];
-            ZonedDateTime zdt = now.InZone(tz);
-            //This will be the best way to display a datetime?
-            ZonedDateTime test = (Instant.FromDateTimeOffset(DateTime.Now)).InZone(tz);
-            txtDate.Text = now.InUtc().ToString();
-            txtDateTimeNow.Text = test.ToString();
-            //comboBox1.DataSource = TzdbDateTimeZoneSource.Default
-            //    .ZoneLocations.OrderBy(t => t.ZoneId)
-            //    .ToList();
-            //comboBox1.DisplayMember = "ZoneId";
-            var zonesss = TzdbDateTimeZoneSource.Default.Aliases.ToList();
-            comboBox1.DataSource = TzdbDateTimeZoneSource.Default.ZoneLocations.OrderBy(o=>o.ZoneId).ToList();
-            comboBox1.DisplayMember = "ZoneId";
-            var cultures = CultureInfo.GetCultures(CultureTypes.AllCultures & ~CultureTypes.SpecificCultures);
-            comboBox1.DataSource = cultures.ToList();
-            comboBox1.DisplayMember = "DisplayName";
-            comboBox1.SelectedItem = defaultCulture;
-
+            ZonedDateTime zdt = now.InZone(timeZone);
+            ZonedDateTime test = (Instant.FromDateTimeOffset(DateTime.Now)).InZone(timeZone);
+            txtNodaTimeInstant.Text = now.ToString();
             
+            cmbTimeZone.DataSource = DateTimeZoneProviders.Tzdb.Ids;
+            cmbTimeZone.SelectedItem = timeZone.Id;
+            cmbCultures.DataSource = TzdbDateTimeZoneSource.Default.ZoneLocations.OrderBy(o=>o.ZoneId).ToList();
+            cmbCultures.DisplayMember = "ZoneId";
+            cmbCultures.DataSource = CultureInfo.GetCultures(CultureTypes.AllCultures & ~CultureTypes.SpecificCultures).ToList();
+            cmbCultures.DisplayMember = "DisplayName";
+            cmbCultures.SelectedItem = culture;
 
-            txtInstant.Text = "Instant: " + now.ToString() + Environment.NewLine;
-            txtInstant.Text += "ZonedDateTime: " + now.InUtc().ToString() + Environment.NewLine;
-            txtInstant.Text += "Time Zone: " + tz.Id.ToString() + Environment.NewLine;
-            txtInstant.Text += "Local Time: " + now.InZone(tz).ToString() + Environment.NewLine;
-            txtInstant.Text += "Offset: " + tz.MaxOffset.ToString() + Environment.NewLine;
+            updateFormattedDatetime();
         }
 
         private void dateTimePicker1_ValueChanged(object sender, EventArgs e)
@@ -63,30 +47,45 @@ namespace NodaTimeExamples
             MessageBox.Show(appointment.InZoneStrictly(tz).ToString());
         }
 
+        private void updateFormattedDatetime()
+        {
+            txtFormattedDate.Text = now.InZone(timeZone).ToString("dd/MM/yyyy HH:mm:ss", culture);
+        }
+
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
-            //DateTimeZone tz = DateTimeZoneProviders.Tzdb[time_zone.StandardName];
-            if (comboBox1.SelectedItem is CultureInfo culture)
+            if (cmbCultures.SelectedItem is CultureInfo newCulture)
             {
-                //store the LCID in the database
-                culture = new CultureInfo(culture.Name);
-                textBox1.Text = culture.DisplayName;
-                textBox1.Text += Environment.NewLine + culture.Name;
-                textBox1.Text += Environment.NewLine + DateTime.Now.ToString(culture);
-                textBox1.Text += Environment.NewLine + String.Format(culture, "{0:C}", 10.545);
-                ///-----
-                // This gets an instant from stored time
-                LocalDateTime localDateTime = LocalDateTime.FromDateTime(dateTimePicker1.Value);
-                var timeZone = DateTimeZoneProviders.Tzdb["Europe/London"];
-                var zonedDateTime = localDateTime.InZoneLeniently(timeZone);
-                //quicker way of doing it ---VVV--
-                timeZone.AtLeniently(localDateTime).ToInstant();
-                var instant = zonedDateTime.ToInstant();
-                textBox1.Text += Environment.NewLine + "---------------------------------------";
-                textBox1.Text += Environment.NewLine + "Local Date Time: " + localDateTime.ToString();
-                textBox1.Text += Environment.NewLine + "Zoned Date Time: " + zonedDateTime.ToString();
-                textBox1.Text += Environment.NewLine + "Instant: " + instant.ToString();
+                culture = new CultureInfo(newCulture.Name);
             }
+            updateFormattedDatetime();
+            //Basic culture info
+            txtCultureInfo.Clear();
+            txtCultureInfo.Text = culture.Name;
+            txtCultureInfo.Text += Environment.NewLine + DateTime.Now.ToString(culture);
+            txtCultureInfo.Text += Environment.NewLine + String.Format(culture, "{0:C}", 10.545);
+        }
+
+        private void cmbTimeZone_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            timeZone = DateTimeZoneProviders.Tzdb[cmbTimeZone.SelectedItem.ToString()];
+            updateFormattedDatetime();
+            //Convert from a DateTime selection (assuming it is local time) back to Instant for db storage
+            //Create a LocalTime using DateTime.Now
+            LocalDateTime localDateTime = LocalDateTime.FromDateTime(DateTime.Now);
+            ZonedDateTime zonedDateTime = localDateTime.InZoneLeniently(timeZone);
+            Instant instant = zonedDateTime.ToInstant();
+            txtTimeZoneInfo.Clear();
+            txtTimeZoneInfo.Text = "DateTime.Now: " + DateTime.Now.ToString();
+            txtTimeZoneInfo.Text += Environment.NewLine;
+            txtTimeZoneInfo.Text += Environment.NewLine + "Local Date Time: " + localDateTime.ToString();
+            txtTimeZoneInfo.Text += Environment.NewLine + " - LocalDateTime localDateTime = LocalDateTime.FromDateTime(DateTime.Now);";
+            txtTimeZoneInfo.Text += Environment.NewLine;
+            txtTimeZoneInfo.Text += Environment.NewLine + "Zoned Date Time: " + zonedDateTime.ToString();
+            txtTimeZoneInfo.Text += Environment.NewLine + " - ZonedDateTime zonedDateTime = localDateTime.InZoneLeniently(timeZone);";
+            txtTimeZoneInfo.Text += Environment.NewLine;
+            txtTimeZoneInfo.Text += Environment.NewLine + "Instant: " + instant.ToString();
+            txtTimeZoneInfo.Text += Environment.NewLine + " - Instant instant = zonedDateTime.ToInstant();";
         }
     }
 }
